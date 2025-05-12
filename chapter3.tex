@@ -1,0 +1,165 @@
+\chapter{Dataset Generation and Pre-processing}\label{chap:dataset}
+
+\section{Introduction}
+
+This chapter details the methodology employed for generating the dataset used to train the decentralized multi-agent path planning model. As the chosen approach utilizes imitation learning, the dataset is constructed from expert demonstrations of optimal path planning in various scenarios. The expert algorithm selected for this purpose is Conflict-Based Search (CBS), a well-established technique for finding optimal solutions in multi-agent pathfinding problems. This chapter outlines the process of generating these expert demonstrations using CBS and the subsequent pre-processing steps applied to format the data into input tensors suitable for training the Graph Neural Network (GNN) model.
+
+\section{Dataset Generation using Conflict-Based Search (CBS)}
+
+To create a dataset of expert trajectories, we employed the Conflict-Based Search (CBS) algorithm. CBS was chosen as the expert algorithm due to its ability to find optimal or near-optimal solutions for multi-agent path planning problems, particularly in grid-based environments. The implementation of CBS in this research follows a two-level search paradigm, effectively balancing optimality and computational efficiency.
+
+\subsection{Conflict-Based Search Algorithm Implementation}
+
+Our CBS implementation consists of the following key components, mirroring the structure of the provided code:
+
+\begin{itemize}
+    \item \textbf{Low-Level Search (A* Algorithm):} At the core of CBS lies the A* search algorithm, implemented as described in Algorithm~\ref{alg:astar}. The A* algorithm is used to find the shortest path for each agent individually, given a set of constraints. The heuristic function employed in A* is the Manhattan distance, ensuring admissibility and guiding the search towards the goal efficiently.
+
+    % Use a different approach without redefining the algorithmic commands
+    \begin{algorithm}
+    \caption{A* Search Algorithm}
+    \label{alg:astar}
+    \begin{enumerate}
+        \item \textbf{Input:} Agent \texttt{agent\_name}, Environment constraints
+        \item \textbf{Output:} Optimal path for \texttt{agent\_name} or Failure
+        \item Initialize \texttt{open\_set} with \texttt{initial\_state}
+        \item Initialize \texttt{closed\_set} as empty set
+        \item Initialize \texttt{came\_from}, \texttt{g\_score}, \texttt{f\_score}
+        \item While \texttt{open\_set} is not empty:
+            \begin{enumerate}
+                \item \texttt{current} = node in \texttt{open\_set} with lowest \texttt{f\_score}
+                \item If \texttt{current} is at goal for \texttt{agent\_name}:
+                    \begin{enumerate}
+                        \item Return \texttt{reconstruct\_path}(\texttt{came\_from}, \texttt{current})
+                    \end{enumerate}
+                \item Remove \texttt{current} from \texttt{open\_set} and add to \texttt{closed\_set}
+                \item For each \texttt{neighbor} of \texttt{current}:
+                    \begin{enumerate}
+                        \item If \texttt{neighbor} is in \texttt{closed\_set}:
+                            \begin{enumerate}
+                                \item Continue to next neighbor
+                            \end{enumerate}
+                        \item \texttt{tentative\_g\_score} = \texttt{g\_score}[\texttt{current}] + \texttt{step\_cost}
+                        \item If \texttt{neighbor} is not in \texttt{open\_set}:
+                            \begin{enumerate}
+                                \item Add \texttt{neighbor} to \texttt{open\_set}
+                            \end{enumerate}
+                        \item Else if \texttt{tentative\_g\_score} $\geq$ \texttt{g\_score}[\texttt{neighbor}]:
+                            \begin{enumerate}
+                                \item Continue to next neighbor
+                            \end{enumerate}
+                        \item \texttt{came\_from}[\texttt{neighbor}] = \texttt{current}
+                        \item \texttt{g\_score}[\texttt{neighbor}] = \texttt{tentative\_g\_score}
+                        \item \texttt{f\_score}[\texttt{neighbor}] = \texttt{g\_score}[\texttt{neighbor}] + \texttt{heuristic}(\texttt{neighbor}, \texttt{agent\_name})
+                    \end{enumerate}
+            \end{enumerate}
+        \item Return Failure (No path found)
+    \end{enumerate}
+    \end{algorithm}
+
+    \item \textbf{High-Level Search (Constraint Tree):} The high-level search manages a constraint tree (CT) to resolve conflicts between agents' paths. Each node in the CT represents a set of constraints, and the root node starts with no constraints.
+    \item \textbf{Conflict Detection:} The CBS algorithm iteratively detects conflicts in the current multi-agent plan. Conflicts are identified as either \textbf{vertex conflicts}, where two agents occupy the same location at the same time, or \textbf{edge conflicts}, where two agents swap positions between consecutive time steps. The \texttt{get\_first\_conflict} function in our implementation identifies the earliest conflict in a given solution.
+    \item \textbf{Constraint Generation:} Upon detecting a conflict, CBS generates new constraints to resolve it. For vertex conflicts, vertex constraints are added to prevent both agents from occupying the conflicting vertex at the conflicting time. For edge conflicts, edge constraints are added to prevent agents from swapping positions on the conflicting edge at the conflicting time. The \texttt{create\_constraints\_from\_conflict} function generates these constraints based on the detected conflict type.
+    \item \textbf{Replanning and Tree Expansion:} For each conflict, CBS creates two new nodes in the constraint tree, each incorporating a new constraint to resolve the conflict. The A* algorithm is then invoked to replan paths for the affected agents, considering the updated set of constraints. This process is repeated until a conflict-free solution is found or the search space is exhausted. The \texttt{CBS} class and its \texttt{search} method in the provided code manage this high-level search process.
+\end{itemize}
+\begin{algorithm}
+\caption{Conflict-Based Search (CBS) Algorithm}
+\label{alg:cbs}
+\begin{enumerate}
+    \item \textbf{Input:} Map with obstacles, agent start positions, agent goal positions
+    \item \textbf{Output:} Optimal paths for all agents or Failure
+    \item Initialize \texttt{constraint\_tree} with root node \texttt{root}
+    \item Initialize \texttt{root.constraints} = $\emptyset$
+    \item For each agent \texttt{a}:
+        \begin{enumerate}
+            \item \texttt{root.solution[a]} = Find shortest path for agent \texttt{a} using A* search with no constraints
+            \item If no path exists for agent \texttt{a}:
+                \begin{enumerate}
+                    \item Return Failure
+                \end{enumerate}
+        \end{enumerate}
+    \item \texttt{root.cost} = Sum of all path costs in \texttt{root.solution}
+    \item Add \texttt{root} to \texttt{open\_list} (priority queue ordered by node cost)
+    \item While \texttt{open\_list} is not empty:
+        \begin{enumerate}
+            \item \texttt{current} = Remove node with lowest cost from \texttt{open\_list}
+            \item \texttt{conflict} = \texttt{get\_first\_conflict}(\texttt{current.solution})
+            \item If \texttt{conflict} is null:
+                \begin{enumerate}
+                    \item Return \texttt{current.solution} (conflict-free solution found)
+                \end{enumerate}
+            \item For each agent \texttt{a} in \texttt{conflict}:
+                \begin{enumerate}
+                    \item Create new node \texttt{child}
+                    \item \texttt{child.constraints} = \texttt{current.constraints} $\cup$ \{new constraint for agent \texttt{a} based on \texttt{conflict}\}
+                    \item \texttt{child.solution} = \texttt{current.solution}
+                    \item Update \texttt{child.solution[a]} by finding shortest path for agent \texttt{a} using A* search with \texttt{child.constraints}
+                    \item If no path exists for agent \texttt{a}:
+                        \begin{enumerate}
+                            \item Continue to next agent in conflict
+                        \end{enumerate}
+                    \item \texttt{child.cost} = Sum of all path costs in \texttt{child.solution}
+                    \item Add \texttt{child} to \texttt{open\_list}
+                \end{enumerate}
+        \end{enumerate}
+    \item Return Failure (No solution found)
+\end{enumerate}
+\end{algorithm}
+\subsection{Dataset Scenario Generation}
+
+To generate a diverse dataset, we created a variety of MAPF scenarios by varying the following parameters:
+
+\begin{itemize}
+    \item \textbf{Map Dimensions:} We generated grid-based maps of size $W \times H$ (specify dimensions used, e.g., 20x20, 28x28, etc.).
+    \item \textbf{Obstacle Density:} Obstacles were randomly placed on the map with a density of \textit{X}\% (specify density, e.g., 10\%, 20\%, etc.), creating varying levels of environmental clutter.
+    \item \textbf{Number of Agents:} Scenarios were generated with varying numbers of agents, ranging from \textit{N\_min} to \textit{N\_max} (specify range, e.g., 4 to 12, up to 60, etc.), to assess scalability and coordination complexity.
+    \item \textbf{Agent Start and Goal Positions:} For each scenario, start and goal positions for each agent were randomly assigned, ensuring that start and goal positions were distinct and not located on obstacles. We filtered out duplicate or invalid cases to ensure a valid and diverse set of scenarios.
+\end{itemize}
+
+For each generated scenario, the CBS algorithm was executed to compute the optimal paths for all agents. The output of the CBS algorithm for each scenario comprises:
+
+\begin{itemize}
+    \item \textbf{Expert Trajectories:} A sequence of states (time, x-coordinate, y-coordinate) representing the optimal path for each agent, generated by the CBS algorithm. These trajectories serve as the ground truth for imitation learning.
+    \item \textbf{Environment Map:} The grid-based representation of the environment, including obstacle locations.
+\end{itemize}
+
+A total of \textit{Dataset Size} scenarios were generated (specify dataset size, e.g., 30,000 cases), which were then split into training, validation, and testing sets with a ratio of \textit{Training\%}:\textit{Validation\%}:\textit{Testing\%} (specify split ratio, e.g., 70:15:15).
+
+\section{Pre-processing of Dataset for GNN Input}
+
+To prepare the generated dataset for training the GNN model, we performed several pre-processing steps to transform the raw environment data and agent trajectories into input tensors suitable for the neural network architecture. Based on the proposed framework illustrated in Figure~\ref{fig:framework_architecture} (refer to your Framework slide figure number), the input tensor for each agent at each time step is constructed as a $W_{FOV} \times H_{FOV} \times 3$ matrix, representing the agent's local field of view and relevant agent information.
+
+The input tensor is composed of three channels:
+
+\begin{itemize}
+    \item \textbf{Channel 1: Partial Observation of the Environment (Binary Map):} This channel represents the agent's local view of the environment within its Field of View (FOV). It is a binary map where '1' indicates an obstacle within the agent's FOV and '0' represents free space. The FOV size is defined as $W_{FOV} \times H_{FOV}$ (specify FOV dimensions, e.g., 7x7, 9x9, etc.), determined by the field of vision radius $r_{FOV}$ (specify radius, e.g., $r_{FOV}=4$). The agent's current position is centered within this local observation.
+    \item \textbf{Channel 2: Goal Position Encoding:} This channel encodes the location of the agent's goal. Depending on whether the goal is within the agent's FOV, it is represented in two ways:
+        \begin{itemize}
+            \item \textbf{Goal within FOV:} If the goal location falls within the agent's current FOV, its relative position within the FOV is encoded in this channel.
+            \item \textbf{Goal outside FOV:} If the goal is outside the FOV, its position is projected onto the boundary of the FOV, and this projected boundary location is encoded in the channel. This ensures that the agent always has a directional indication towards its goal, even when it is not directly visible.
+        \end{itemize}
+    \item \textbf{Channel 3: Agent Position Encoding:} This channel represents the positions of the agent itself and other agents within its FOV. The agent's own position is always centered in the FOV. The positions of other agents within the FOV are also encoded in this channel as binary indicators. This allows the agent to be aware of the presence and relative positions of its neighbors within its sensing range.
+\end{itemize}
+
+This three-channel input tensor provides a compact and informative representation of the agent's local environment, goal direction, and the presence of nearby agents, serving as the input to the Convolutional Neural Network (CNN) for feature extraction.
+
+\section{Dataset Characteristics}
+
+The generated dataset exhibits the following key characteristics:
+
+\begin{itemize}
+    \item \textbf{Size:} The dataset comprises \textit{Dataset Size} scenarios, split into \textit{Training Size} training samples, \textit{Validation Size} validation samples, and \textit{Testing Size} testing samples. (Specify exact sizes).
+    \item \textbf{Diversity:} The dataset encompasses a wide range of MAPF scenarios with varying map layouts, obstacle configurations, agent densities, and start/goal assignments, ensuring diversity and promoting generalization of the trained model.
+    \item \textbf{Expert Demonstrations:} The dataset provides expert demonstrations of optimal or near-optimal paths generated by the CBS algorithm, serving as high-quality training data for imitation learning.
+    \item \textbf{Suitable for Decentralized Learning:} The pre-processed input tensors are designed to provide each agent with localized information, mirroring the decentralized nature of the intended GNN-based path planning framework.
+\end{itemize}
+
+This carefully curated and pre-processed dataset forms the foundation for training the decentralized multi-agent path planning model, enabling it to learn effective coordination strategies from expert demonstrations in a variety of MAPF scenarios. The next chapter will detail the architecture of the proposed decentralized GNN model and the training methodology.
+
+
+
+
+
+\section{Chapter Summary}
+
+This chapter has detailed the process of dataset generation and pre-processing for training our decentralized multi-agent path planning model. We utilized the Conflict-Based Search (CBS) algorithm to generate expert demonstrations of optimal paths in diverse MAPF scenarios. The raw data was then pre-processed into three-channel input tensors, providing localized and relevant information to each agent. This dataset, characterized by its size, diversity, and expert-derived trajectories, is well-suited for training a GNN-based model for decentralized MAPF. The following chapter will describe the architecture of the proposed GNN model and the imitation learning training process.

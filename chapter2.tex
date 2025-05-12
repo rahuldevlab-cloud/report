@@ -1,0 +1,69 @@
+\chapter{Literature Review}
+\label{chap:literature_review}
+\section{Overview of Decentralized Multi-Agent Path Planning}
+This chapter presents a comprehensive review of the methods and frameworks used in modern multi-agent path planning (MAPF) systems, especially those based on decentralized architectures.
+It investigates various approaches to path planning in multi-robot systems, highlights the evolution towards decentralized and dynamically adaptive strategies, and discusses the increasing relevance of decentralized MAPF in complex and uncertain environments. Each section explores key concepts, technological advancements, and inherent challenges in developing and implementing decentralized MAPF solutions. The chapter aims to outline the state of the art, emphasizing practical challenges and theoretical complexities that define this research field.
+
+\section{Multi-Agent Path Planning System Architectures}
+A multi-agent path planning system can be broadly categorized based on its architecture, which dictates information flow and decision-making processes:
+\begin{itemize}
+    \item \textbf{Centralized Architectures:} In centralized systems, a single planning unit possesses complete knowledge of all agents, their goals, and the environment. This unit computes paths for all agents, ensuring coordination and often aiming for global optimality. Algorithms such as M* and CBS are key examples of this approach.
+    \item \textbf{Decentralized Architectures:} Decentralized systems distribute planning and decision-making among individual agents. Each agent plans its path based on local information and limited communication with neighbors. Methods like VO and ORCA are representative of decentralized strategies.
+    \item \textbf{Coupled Approaches:} Coupled approaches, often found in centralized systems, consider the joint state space of all agents simultaneously. This allows for optimal solutions but suffers from scalability issues. CBS and M* are examples of coupled approaches.
+    \item \textbf{Decoupled Approaches:} Decoupled approaches simplify planning by considering each agent's path individually, addressing conflicts reactively. VO and ORCA are examples of decoupled methods that prioritize computational efficiency.
+    \item \textbf{Networked Topologies:} Multi-agent systems often operate within networked topologies, where communication and coordination are constrained by the network structure. Graph-based representations, like those used in GNNs and algorithms like PRIMAL, are well-suited to model and exploit these topologies for decentralized MAPF.
+\end{itemize}
+
+\section{Centralized Multi-Agent Path Planning Techniques}
+Centralized MAPF approaches, while offering optimality guarantees under certain conditions, face scalability limitations and single points of failure. This section reviews key centralized techniques and their characteristics.
+
+\subsection{Optimal Centralized Algorithms: M* and ICTS}
+Optimal centralized algorithms like M* \cite{Standley2011Complete} % Corrected citation key if needed
+and ICTS (Increasing Cost Tree Search) aim to find solutions with the minimum total cost (e.g., sum of path lengths) for all agents. M* guarantees optimality and completeness by systematically exploring the joint state space of all agents. ICTS, while also striving for optimality, improves efficiency over basic search algorithms by focusing on conflict resolution within a tree-based search framework. However, the computational complexity of these algorithms grows exponentially with the number of agents and environment size, limiting their applicability to large-scale problems.
+
+\subsection{Conflict-Based Search (CBS)}
+Conflict-Based Search (CBS) \cite{Sharon2015CBS} % Corrected citation key if needed
+is a prominent centralized MAPF algorithm that efficiently finds optimal or near-optimal solutions by iteratively resolving conflicts between agents paths. CBS operates on a two-level search structure: a high-level search that identifies and resolves conflicts by adding constraints, and a low-level search (typically A*) that replans paths for individual agents under these constraints. CBS significantly improves scalability compared to brute-force search methods but still faces computational challenges with increasing agent density and complex environments. Despite its efficiency improvements over purely exhaustive searches, CBS remains computationally expensive for very large teams or highly complex environments.
+
+\section{Decentralized Multi-Agent Path Planning Techniques}
+Decentralized MAPF methods prioritize scalability and robustness by distributing planning and decision-making among individual agents. This section reviews key decentralized approaches, including velocity obstacle based methods and learning-based techniques.
+
+\subsection{Velocity Obstacle (VO) and Optimal Reciprocal Collision Avoidance (ORCA)}
+Velocity Obstacle (VO) \cite{VanDenBerg2008ORCA} % Corrected citation key if needed
+and its refinement, Optimal Reciprocal Collision Avoidance (ORCA), are classic decentralized approaches for collision avoidance. VO defines a velocity obstacle for each agent based on the relative velocities and positions of neighboring agents. ORCA improves upon VO by ensuring reciprocal collision avoidance and smoother trajectories. These methods are computationally efficient and reactive, enabling real-time collision avoidance in dynamic environments. However, VO and ORCA are primarily reactive and may not guarantee goal achievement or optimality in complex scenarios, and can sometimes lead to local minima or deadlocks in tightly constrained spaces.
+
+\subsection{Decentralized Planning with Graph Neural Networks (GNNs) and PRIMAL }
+Recent advancements explore learning-based decentralized MAPF, particularly utilizing Graph Neural Networks (GNNs) and Reinforcement Learning (RL). GNNs, as demonstrated by Li et al. \cite{Li2021GNNCoordination}, % Corrected citation key if needed
+are well-suited for decentralized MAPF due to their ability to model agent interactions within a graph structure, facilitating distributed information aggregation and decision-making. However, standard GNN approaches often rely on aggregating information from a fixed K-hop neighborhood, which may not be optimal across diverse situations. PRIMAL (Pathfinding via Reinforcement and Imitation Multi-Agent Learning) \cite{Sartoretti_et_al_2019} combines imitation learning from expert demonstrations with reinforcement learning to train decentralized policies, often without explicit communication modeling.
+
+To address the limitations of fixed communication ranges in GNNs, adaptive graph methods like Adaptive Diffusion Convolution (ADC) \cite{Zhao2021ADC} have been proposed. ADC replaces discrete K-hop aggregation with a learnable diffusion process, allowing the network to automatically determine the appropriate extent of information propagation based on the task and data. Integrating such adaptive diffusion mechanisms into GNNs for MAPF holds the potential to improve coordination policies by dynamically adjusting the communication neighborhood size, enhancing adaptability compared to fixed-K approaches. These learning-based methods, especially those incorporating adaptive communication, are promising for achieving more sophisticated and adaptable coordination in decentralized systems.
+
+\section{Relevance of Decentralized Multi-Agent Path Planning Systems}
+Decentralized MAPF systems are increasingly relevant due to their inherent advantages in various robotic applications:
+\begin{itemize}
+    \item \textbf{Scalability:} Decentralized approaches scale more effectively to large teams of robots, as computational load is distributed across agents rather than concentrated in a central unit.
+    \item \textbf{Robustness and Fault Tolerance:} Decentralized systems are more robust to failures, as the system can continue operating even if individual agents or communication links fail.
+    \item \textbf{Adaptability to Dynamic Environments:} Decentralized agents can react more quickly to changes in the environment, as they rely on local sensing and communication rather than waiting for global updates.
+    \item \textbf{Real-time Performance:} Decentralized algorithms are often more computationally efficient, enabling real-time path planning and execution, crucial for dynamic applications.
+    \item \textbf{Versatility and Flexibility:} Decentralized systems can be deployed in diverse environments, including those with limited communication infrastructure or unknown topologies.
+    \item \textbf{Cost-Effectiveness:} Decentralized systems can reduce reliance on expensive centralized computing and communication infrastructure, potentially lowering overall system costs.
+    \item \textbf{Applications in Complex Domains:} Decentralized MAPF is essential for applications in domains like warehouse automation, autonomous driving, search and rescue, and space exploration, where large teams of robots must operate autonomously in dynamic and uncertain conditions.
+\end{itemize}
+
+\section{Challenges in Decentralized MAPF}
+Despite their advantages, Decentralized MAPF systems face several significant challenges:
+\begin{itemize}
+    \item \textbf{Sub-optimality:} Decentralized solutions may not guarantee global optimality, as agents make decisions based on limited local information.
+    \item \textbf{Deadlocks and Local Minima:} Insufficient coordination in decentralized systems can lead to deadlocks or agents becoming trapped in local minima.
+    \item \textbf{Partial Observability:} Agents typically have only partial views of the environment, making it difficult to plan globally optimal paths and anticipate the actions of distant agents.
+    \item \textbf{Communication Constraints:} Limited communication range, bandwidth, or reliability can hinder effective coordination in decentralized systems. Determining the optimal range and information to share is also a challenge.
+    \item \textbf{Dynamic and Uncertain Environments:} Adapting to dynamic obstacles, changing goals, and noisy sensor data in real-time remains a significant challenge for decentralized MAPF.
+    \item \textbf{Coordination Complexity:} Designing effective coordination mechanisms in decentralized systems, especially for complex tasks and dense agent populations, is non-trivial.
+    \item \textbf{Verification and Validation:} Verifying the correctness and safety of decentralized MAPF algorithms, particularly in safety-critical applications, can be challenging.
+    \item \textbf{Adaptability and Learning in Decentralized Settings:} Enabling decentralized agents to learn and adapt to new environments and tasks autonomously, especially concerning communication strategies, is an ongoing research area.
+    \item \textbf{Balancing Reactivity and Proactiveness:} Decentralized agents need to be reactive to local changes while also exhibiting proactive behavior to achieve long-term goals and avoid potential future conflicts.
+    \item \textbf{Ensuring Fairness and Efficiency:} In multi-agent systems, ensuring fairness in resource allocation and efficient overall system performance requires careful design of decentralized algorithms.
+\end{itemize}
+
+\section{Chapter Summary}
+This chapter has provided a literature review focusing on Decentralized Multi-Agent Path Planning. We have explored the spectrum of MAPF approaches, from centralized optimal algorithms like M* and CBS to decentralized reactive methods like VO and ORCA, and emerging learning-based techniques utilizing GNNs and RL like PRIMAL. A key challenge identified in learning-based methods is the reliance on fixed communication ranges. The chapter highlighted the relevance and advantages of decentralized MAPF in complex robotic applications, while also outlining the significant challenges that remain in achieving robust, efficient, and truly autonomous multi-robot systems. In subsequent chapters, we will delve into our proposed decentralized path planning framework, addressing some of these challenges by leveraging Adaptive Diffusion Convolution (ADC) to enhance coordination and adaptability by learning effective communication ranges. We aim to contribute to the field by exploring how adaptive communication mechanisms can improve the performance and robustness of decentralized MAPF systems.

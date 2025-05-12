@@ -1,0 +1,153 @@
+% ============================================================
+% CHAPTER 3: BACKGROUND AND THEORETICAL FOUNDATIONS
+% ============================================================
+\chapter{Background and Theoretical Foundations}
+\label{chap:background}
+
+This chapter lays the groundwork for understanding the proposed decentralized multi-robot path planning framework enhanced with Adaptive Diffusion Convolution (ADC). We begin by introducing fundamental concepts from graph theory, which provide the mathematical language for representing multi-robot systems and their interactions. We then delve into Graph Neural Networks (GNNs), explaining their general architecture and how they process graph-structured data, highlighting the limitations of standard fixed-neighborhood approaches. Subsequently, we explore concepts from graph signal processing and graph diffusion processes, focusing on the graph heat kernel, which forms the basis for ADC. Finally, we detail the Adaptive Diffusion Convolution mechanism itself, explaining how it enables learnable, adaptive information propagation on graphs.
+
+\section{Graph Theory Essentials}
+\label{sec:graph_theory}
+
+Graphs provide a natural and powerful way to model the relationships and interactions within multi-robot systems.
+
+A \textbf{graph} is formally defined as a pair $G = (V, E)$, where $V$ is the set of vertices (or nodes) and $E \subseteq V \times V$ is the set of edges connecting pairs of vertices. In the context of MRPP, the set of robots typically constitutes the vertex set $V = \{1, ..., N\}$, where $N$ is the total number of robots.
+
+An \textbf{edge} $(i, j) \in E$ signifies a relationship or potential interaction between robot $i$ and robot $j$. In decentralized MRPP, edges often represent the possibility of direct communication or sensing between robots. If the relationship is symmetric (i.e., if robot $i$ can communicate with $j$, then $j$ can communicate with $i$), the graph is \textbf{undirected}. If the relationship has a direction, the graph is \textbf{directed}. In many MRPP scenarios, communication links are bidirectional, leading to undirected graphs.
+
+The structure of the graph, particularly the communication links, can change over time as robots move. Therefore, we often consider a \textbf{time-varying graph} $G_t = (V, E_t)$ at each discrete time step $t$. An edge $(i, j) \in E_t$ might exist if the distance between robots $i$ and $j$ at time $t$, denoted by $\|p_i(t) - p_j(t)\|$, is less than or equal to a predefined communication radius $r_{comm}$.
+
+The structure of a graph $G_t$ at time $t$ is commonly represented using matrices:
+
+\begin{itemize}
+    \item \textbf{Adjacency Matrix ($A_t$):} An $N \times N$ matrix where $[A_t]_{ij} = 1$ if $(i, j) \in E_t$ and $i \neq j$, and $[A_t]_{ij} = 0$ otherwise. For undirected graphs, $A_t$ is symmetric ($A_t = A_t^T$). Often, self-loops are added, resulting in $\hat{A}_t = A_t + I$, where $I$ is the identity matrix. This allows a node to consider its own features during aggregation.
+    \item \textbf{Degree Matrix ($D_t$):} An $N \times N$ diagonal matrix where the $i$-th diagonal element $[D_t]_{ii}$ represents the degree of node $i$, calculated as $[D_t]_{ii} = \sum_{j=1}^{N} [A_t]_{ij}$. It counts the number of edges connected to node $i$. If self-loops are included via $\hat{A}_t$, the corresponding degree matrix is $\hat{D}_t$, where $[\hat{D}_t]_{ii} = \sum_{j=1}^{N} [\hat{A}_t]_{ij}$.
+\end{itemize}
+
+These matrices are fundamental building blocks for defining operations on graph signals and for constructing GNN layers.
+
+\section{Graph Shift Operators (GSOs)}
+\label{sec:gsos}
+
+A Graph Shift Operator (GSO) is an $N \times N$ matrix $S$ whose sparsity pattern reflects the underlying graph topology. That is, $[S]_{ij} \neq 0$ only if $i=j$ or $(j, i) \in E$ (or $(i,j) \in E$ depending on convention, but for symmetric operators derived from undirected graphs, it doesn't matter). GSOs represent linear, local operations on graph signals (features defined on the nodes). Applying a GSO $S$ to a matrix of node features $X \in \mathbb{R}^{N \times F}$ (where each row is a node's feature vector) results in $SX$, where the features at each node become a linear combination of features from its neighbors (as defined by the non-zero entries in $S$).
+
+Common GSOs derived from the graph structure at time $t$ include:
+\begin{itemize}
+    \item \textbf{Adjacency Matrix ($A_t$ or $\hat{A}_t$):} Represents aggregation from direct neighbors (and self if $\hat{A}_t$ is used).
+    \item \textbf{Graph Laplacian Matrices:} Laplacians capture notions of smoothness and variation of signals over the graph.
+        \begin{itemize}
+            \item \textbf{Combinatorial Laplacian ($L_{comb, t}$):} Defined as $L_{comb, t} = D_t - A_t$.
+            \item \textbf{Symmetrically Normalized Adjacency Matrix ($\tilde{A}_t$):} Used prominently in GCNs, defined as $\tilde{A}_t = \hat{D}_t^{-1/2} \hat{A}_t \hat{D}_t^{-1/2}$ (equivalent to Eq. 1 in the concise paper, assuming $\hat{A}_t$ and $\hat{D}_t$). This normalization helps stabilize learning and accounts for varying node degrees.
+            \item \textbf{Symmetrically Normalized Laplacian ($L_{norm, t}$):} Defined as $L_{norm, t} = I - \tilde{A}_t = I - \hat{D}_t^{-1/2} \hat{A}_t \hat{D}_t^{-1/2}$ (equivalent to Eq. 2). Its eigenvalues are bounded between 0 and 2, which is beneficial for analysis and stability.
+        \end{itemize}
+\end{itemize}
+The choice of GSO fundamentally influences how information propagates within a GNN.
+
+\section{Graph Neural Networks (GNNs)}
+\label{sec:gnns}
+
+Graph Neural Networks (GNNs) are a class of deep learning models designed to operate directly on graph-structured data. They leverage the graph topology to learn representations for nodes, edges, or entire graphs. The core idea behind most GNNs is the \textbf{message passing} paradigm \cite{Gilmer2017MessagePassing}, where nodes iteratively aggregate information from their local neighborhoods and update their own representations.
+
+\subsection{General Framework}
+A typical GNN layer $l$ performs the following steps for each node $i$:
+\begin{enumerate}
+    \item \textbf{Message Computation:} Each neighbor $j$ of node $i$ computes a message, often based on its own features $h_j^{(l-1)}$ and potentially the edge features $e_{ji}$.
+    \item \textbf{Aggregation:} Node $i$ aggregates the incoming messages from its neighbors (defined by the graph structure, often using a permutation-invariant function like sum, mean, or max).
+    \item \textbf{Update:} Node $i$ updates its hidden representation $h_i^{(l)}$ based on its previous representation $h_i^{(l-1)}$ and the aggregated message.
+\end{enumerate}
+Mathematically, many GNN layers can be expressed compactly using GSOs. Let $H^{(l)} \in \mathbb{R}^{N \times F^{(l)}}$ be the matrix of node features at layer $l$ (with $H^{(0)} = X$, the input features). A generic GNN layer can often be written as:
+\begin{equation}
+    H^{(l+1)} = \sigma \left( \text{AGGREGATE} \left( H^{(l)}, G_t \right) \cdot W^{(l)} \right)
+\end{equation}
+where $\sigma$ is a non-linear activation function (e.g., ReLU), $W^{(l)}$ is a learnable weight matrix for feature transformation, and $\text{AGGREGATE}(H^{(l)}, G_t)$ represents the neighborhood aggregation operation dictated by the graph $G_t$ (often involving a GSO).
+
+\subsection{Graph Convolutional Network (GCN)}
+The Graph Convolutional Network (GCN) \cite{Kipf2017GCN} is a popular and foundational GNN architecture. Its layer-wise propagation rule (as simplified in Eq. 4 of the concise paper) is:
+\begin{equation}
+    H^{(l+1)} = \sigma \left( \tilde{A}_t H^{(l)} W^{(l)} \right)
+    \label{eq:gcn_layer}
+\end{equation}
+Here, the aggregation step is performed by multiplying with the symmetrically normalized adjacency matrix with self-loops, $\tilde{A}_t$. This effectively computes a weighted average of the features of a node and its immediate neighbors (1-hop neighborhood).
+
+\subsection{Fixed Neighborhood Limitation}
+A key characteristic of standard GCN layers (Eq. \ref{eq:gcn_layer}) is that they only aggregate information from the immediate 1-hop neighborhood in a single step. To capture information from nodes further away (K-hops), one typically needs to stack $K$ GCN layers. Alternatively, some architectures use graph polynomial filters \cite{Defferrard2016ChebNet}, where a single layer aggregates information over K-hops using powers of the GSO (as hinted in Eq. 5 of the concise paper):
+\begin{equation}
+    H_{GNN} = f_{GNN}(X_t, S_t; K, \theta_{GNN}) = \sigma \left( \sum_{k=0}^{K-1} c_k S_t^k X_t W_k \right) \quad \text{(Conceptual form)}
+\end{equation}
+where $S_t$ is a GSO, $K$ defines the maximum hop count (filter degree), and $c_k, W_k$ are learnable parameters.
+
+In both stacking layers and using polynomial filters, the extent of the neighborhood ($K$) is typically \textbf{fixed} and predefined. As discussed previously, this fixed nature is a major limitation in dynamic MRPP scenarios where the optimal communication range might vary.
+
+\section{Graph Signal Processing and Diffusion Processes}
+\label{sec:gsp_diffusion}
+
+Graph Signal Processing (GSP) extends classical signal processing concepts to data defined on graph structures. It provides tools to analyze graph signals (features on nodes) in terms of their variation and smoothness with respect to the underlying graph topology.
+
+\subsection{Graph Fourier Transform}
+The eigendecomposition of a graph Laplacian matrix (e.g., $L_{norm} = U \Lambda U^T$, where $U$ contains the eigenvectors and $\Lambda$ is a diagonal matrix of eigenvalues) defines the Graph Fourier Transform (GFT). The eigenvectors $U$ form an orthonormal basis representing different modes of variation (graph frequencies), and the eigenvalues $\Lambda$ represent the corresponding frequencies. Small eigenvalues correspond to low frequencies (smooth signals over the graph), while large eigenvalues correspond to high frequencies (signals with rapid variations between neighbors).
+
+\subsection{Diffusion Processes on Graphs}
+Diffusion processes model the spread or flow of information (or heat, particles, etc.) over a network. A fundamental diffusion process on a graph, analogous to the heat equation in continuous space, can be described by the differential equation:
+\begin{equation}
+    \frac{dX(t)}{dt} = -L X(t)
+    \label{eq:diffusion_pde}
+\end{equation}
+where $X(t) \in \mathbb{R}^{N \times F}$ represents the features/signal on the graph nodes at diffusion time $t$, and $L$ is a graph Laplacian operator. A common choice, aligning with the stability analysis in the concise paper (Sec VI) and the ADC paper \cite{Zhao2021ADC}, is to use a Laplacian related to $I - T$, where $T$ is a GSO with $\|T\| \le 1$ (e.g., $T = \tilde{A}_t$). For instance, setting $L = L_{ADC} = I - \tilde{A}_t$ (the normalized Laplacian) is common.
+
+\subsection{Graph Heat Kernel}
+The solution to the diffusion equation (Eq. \ref{eq:diffusion_pde}) with an initial condition $X(0)$ is given by:
+\begin{equation}
+    X(t) = e^{-tL} X(0)
+    \label{eq:diffusion_solution}
+\end{equation}
+The matrix exponential $H_t = e^{-tL}$ is known as the \textbf{graph heat kernel}. It acts as a linear operator that propagates the initial signal $X(0)$ over the graph structure for a diffusion time $t$.
+
+Key properties of the heat kernel $H_t$:
+\begin{itemize}
+    \item \textbf{Low-pass Filter:} From a spectral perspective (using GFT), the heat kernel applies a filter $h(\lambda) = e^{-t\lambda}$ to the graph frequencies $\lambda$ (eigenvalues of $L$). Since $L$ is positive semi-definite ($\lambda \ge 0$), this filter attenuates high frequencies more strongly than low frequencies, effectively smoothing the signal over the graph.
+    \item \textbf{Controlling Diffusion Extent:} The diffusion time parameter $t \ge 0$ controls the extent of smoothing and information propagation:
+        \begin{itemize}
+            \item As $t \to 0$, $H_t \to I$. There is no diffusion; each node retains only its initial information.
+            \item As $t \to \infty$, $H_t$ projects the signal onto the graph's connected components' average values (assuming $L$ corresponds to a connected graph's Laplacian). Information spreads globally within components.
+            \item For intermediate $t$, $H_t$ aggregates information from a neighborhood whose effective "radius" increases with $t$. This provides a principled way to control the scale of feature aggregation.
+        \end{itemize}
+\end{itemize}
+
+\section{Adaptive Diffusion Convolution (ADC)}
+\label{sec:adc}
+
+The limitations of fixed-K GNNs motivate the use of more flexible aggregation mechanisms. Graph Diffusion Convolution (GDC) \cite{Klicpera2019DiffusionGCN} proposed using generalized diffusion processes (including PageRank and heat kernel) for feature propagation, but typically requires manual tuning of the diffusion parameters (like $t$ for the heat kernel) for each dataset.
+
+Adaptive Diffusion Convolution (ADC) \cite{Zhao2021ADC} builds upon this by making the diffusion parameters \textbf{learnable}, allowing the network to automatically adapt the neighborhood size during training.
+
+\subsection{ADC with Heat Kernel}
+Focusing on the heat kernel, ADC employs $H_t = e^{-tL}$ as the feature propagation mechanism, where $L$ is typically chosen as $L = I - T$ with $T$ being a suitable GSO (e.g., $T=\tilde{A}_t$). The crucial difference is that the diffusion time $t$ is treated as a learnable parameter, optimized via backpropagation along with the network weights $W^{(l)}$.
+
+\subsection{Implementation via Taylor Approximation}
+Directly computing the matrix exponential $e^{-tL}$ is computationally expensive for large graphs. ADC relies on the Taylor series expansion. Since $L = I - T$, the heat kernel is $H_t = e^{-t(I-T)} = e^{-t} e^{tT}$. The term $e^{tT}$ can be approximated by truncating its Taylor series expansion:
+\begin{equation}
+    e^{tT} = \sum_{k=0}^{\infty} \frac{(tT)^k}{k!} \approx \sum_{k=0}^{K_{trunc}} \frac{t^k}{k!} T^k
+\end{equation}
+Combining these, the practical ADC propagation operator based on the truncated heat kernel becomes (similar to Eq. 10 in the concise paper):
+\begin{equation}
+    H_t \approx \sum_{k=0}^{K_{trunc}} \theta_k(t) T^k \quad \text{where} \quad \theta_k(t) = e^{-t} \frac{t^k}{k!}
+    \label{eq:adc_approx}
+\end{equation}
+Here, $K_{trunc}$ is the truncation order (maximum hop distance considered in the approximation), and $T$ is the chosen GSO (e.g., $T = \tilde{A}_t$). The key is that the coefficients $\theta_k(t)$ depend on the \textit{learnable} parameter $t$. This allows the GNN layer using ADC:
+\begin{equation}
+    H^{(l+1)} = \sigma \left( \left( \sum_{k=0}^{K_{trunc}} \theta_k(t) T^k \right) H^{(l)} W^{(l)} \right)
+\end{equation}
+to adaptively control the influence of neighbors at different hop distances $k$ by learning the optimal diffusion time $t$.
+
+\subsection{Theoretical Advantages}
+As highlighted in the concise paper (Sec VI) and \cite{Zhao2021ADC}:
+\begin{itemize}
+    \item \textbf{Stability:} If the chosen GSO $T$ satisfies $\|T\| \le 1$ (which $\tilde{A}_t$ does), the operator norm of the ADC propagation matrix (Eq. \ref{eq:adc_approx}) is bounded: $\|\sum_{k=0}^{K_{trunc}} \theta_k(t) T^k \| \le \sum_{k=0}^{K_{trunc}} |\theta_k(t)| \|T\|^k \le \sum_{k=0}^{\infty} \theta_k(t) = e^{-t}e^t = 1$. This inherent stability contrasts with standard GCN layers where the weights $W^{(l)}$ could potentially lead to exploding activations if not properly regularized.
+    \item \textbf{Adaptive Filtering:} Learning $t$ effectively means learning the cutoff frequency or bandwidth of the underlying low-pass heat kernel filter ($h(\lambda; t)=e^{-t\lambda}$). This allows the model to adapt the degree of signal smoothing based on the data and task, rather than using a fixed filter shape defined by K.
+\end{itemize}
+
+This ADC mechanism, particularly the learnable diffusion time $t$, forms the core of the adaptive communication module integrated into the MRPP framework proposed in this thesis (Chapter \ref{chap:methodology}). It replaces the fixed K-hop aggregation of standard GNNs, enabling more flexible and potentially more effective information sharing among robots.
+
+
+% End of Chapter 3
+% Add bibliography command here in your main file: \bibliography{your_bib_file}

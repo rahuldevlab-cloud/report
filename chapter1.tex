@@ -1,0 +1,81 @@
+%======================================
+% CHAPTER 1: INTRODUCTION
+% ==================================================
+\chapter{Introduction}
+\label{chap:introduction}
+\section{Motivation}
+Multi-robot systems are increasingly common in a variety of applications, from automated warehousing and logistics \cite{Wurman2008} to environmental monitoring, search and rescue, surveillance, and planetary exploration \cite{Parker2008}. 
+Coordinating multiple robots to navigate complex, shared environments while avoiding collisions is a fundamental challenge for the success of these systems.The Multi-Robot Path Planning (MRPP), or Multi-Agent Path Finding (MAPF) \cite{Stern2019MAPFSurvey} problem addresses this core requirement of computing collision-free paths for a group of robots from their initial locations to target goal points.
+
+Although centralized methods for MRPP may be able to provide optimal solutions \cite{Sharon2015CBS}, they assume global knowledge and a coordinator node, resulting in strong computational bottlenecks and scalability problems as the size of the team increases \cite{Standley2011Complete}. In addition, most real-world situations naturally create decentralized constraints. Robots can be deployed with bounded sensing ranges, limited peer-to-peer communication capacity, and no access to global positioning systems or a stable central controller \cite{Li2021GNNCoordination, VanDenBerg2008ORCA}. Under such decentralized environments, each robot needs to make navigation decisions based only on its local observations and information it receives from neighboring teammates. This requires efficient strategies for information exchange and distributed coordination to realize shared objectives.
+
+Recent advancements have been looking into learning-based methods using Graph Neural Networks (GNNs),Reinforcement Learning to formulate decentralized MRPP policies \cite{Li2021GNNCoordination, Tolstay2020LearningDecentralized}. GNNs are well-adapted to representing the communication and relational structure present in multi-robot teams. A prominent framework proposed by Li et al. \cite{Li2021GNNCoordination} uses a Convolutional Neural Network (CNN) for feature extraction from local observations and a GNN to enable inter-robot communication and coordinate action. 
+
+\section{Problem Statement}
+\label{sec:problem_statement}
+
+This thesis addresses the problem of decentralized Multi-Robot Path Planning (MRPP) in environments where robots have limited capabilities. We consider scenarios where:
+\begin{itemize}
+    \item Robots operate in a shared environment with static obstacles.
+    \item Each robot possesses only local sensing capabilities, perceiving its surroundings within a limited Field-of-View (FOV).
+    \item Robots lack access to global information, such as a complete map or absolute positioning .
+    \item Communication is restricted to peer-to-peer interactions within a predefined communication radius ($r_{comm}$). Robots can only exchange information directly with neighbors within this range.
+    \item The goal is for all robots to navigate from their individual start locations to their respective goal locations efficiently avoiding collisions with obstacles and other robots.
+\end{itemize}
+
+Although GNN-based methods such as Li et al. \cite{Li2021GNNCoordination} provide a framework for learning decentralized coordination, the limitation arises from their dependence on a \textbf{fixed, predefined communication range}, typically implemented as K-hop message passing. In this approach, each robot aggregates information only from peers within a fixed number of communication hops (K). This fixed structure presents the drawback that the optimal extent of information sharing may vary depending on factors such as environmental complexity, the number of robots, the density of local robots and the specific situation encountered during navigation. A single manually tuned value of K is unlikely to be optimal for all these diverse conditions. Selecting the best K often requires extensive empirical tuning or heuristics, limiting the adaptability and potentially the peak performance of the learned coordination policy. This inflexibility motivates the need for a communication mechanism that can dynamically adapt the extent of information propagation or learn the most suitable range from the data.
+
+\newpage
+\section{Objectives}
+\label{sec:objectives}
+
+The primary goal of this thesis is to enhance decentralized MRPP by incorporating adaptive communication, addressing the limitations of fixed interaction ranges in prior GNN-based work \cite{Li2021GNNCoordination}. The specific objectives are:
+
+\subsection{Task 1: Integrate Adaptive Communication Mechanism}
+\label{subsec:obj_integrate}
+Replace the fixed K-hop GNN communication module \cite{Li2021GNNCoordination} with Adaptive Diffusion Convolution (ADC) \cite{Zhao2021ADC}. This aims to enable the network to automatically learn the optimal information diffusion extent ($t$) during training, adapting the communication neighborhood based on the task.
+
+\subsection{Task 2: Analyze Theoretical Properties}
+\label{subsec:obj_analysis}
+Briefly analyze and contrast the theoretical stability and spectral filtering properties of the ADC layer relative to standard fixed-K GCN layers \cite{Kipf2017GCN}, highlighting potential advantages in stability \cite{Zhao2021ADC, Gama2019StabilityGNN} and adaptive filtering.
+
+\subsection{Task 3: Empirically Evaluate Performance}
+\label{subsec:obj_evaluation}
+Quantitatively evaluate the proposed ADC-enhanced MRPP framework using imitation learning on expert (CBS \cite{Sharon2015CBS}) demonstrations. Performance will be measured by Success Rate (SR) and Convergence Time (CT) in simulated grid environments and compared against fixed-K GNN baselines.
+
+\subsection{Task 4: Assess Adaptivity and Generalization}
+\label{subsec:obj_adaptivity}
+Investigate the practical benefits of adaptivity by comparing performance across varying environmental conditions (e.g., obstacle densities). Assess the generalization capabilities of the ADC model versus fixed-K models when tested on conditions different from training, supported by relevant ablation studies.
+
+\newpage
+
+\section{Contributions}
+\label{sec:contributions}
+
+The primary contributions of this thesis are:
+\begin{itemize}
+    \item Integration of Adaptive Diffusion Convolution (ADC) \cite{Zhao2021ADC} into a decentralized MRPP framework \cite{Li2021GNNCoordination}, enabling the automatic learning of adaptive communication ranges ($t$) instead of relying on fixed K-hops.
+    \item Theoretical analysis highlighting improved stability properties of the ADC layer compared to standard GCN layers within the MRPP context.
+    \item Empirical demonstration, via simulation and imitation learning, that the ADC-enhanced framework achieves superior success rates compared to fixed-K GNN baselines across various environments.
+    \item Evidence showing the ADC approach offers better adaptability to different environmental conditions (e.g., obstacle densities) and improved generalization to unseen scenarios compared to fixed-range methods.
+\end{itemize}
+
+\section{Report Organization}
+\label{sec:report_organization}
+
+The remainder of this thesis is structured as follows:
+
+\begin{itemize}
+    \item \textbf{\hyperref[chap:literature_review]{Chapter 2 (Literature Review)}:} Provides a comprehensive review of existing work in Multi-Robot Path Planning, covering centralized, decentralized, and learning-based approaches, with a focus on GNN-based methods and adaptive graph techniques.
+
+    \item \textbf{\hyperref[chap:background]{Chapter 3 (Background and Theoretical Foundations)}:} Introduces the necessary theoretical background on graph theory, Graph Neural Networks (GNNs), graph signal processing, graph diffusion processes, and the Adaptive Diffusion Convolution (ADC) mechanism.
+
+    \item \textbf{\hyperref[chap:dataset]{Chapter 4 (Dataset Generation and Preprocessing)}:} Details the process of generating the synthetic MRPP datasets used for training and evaluation, including the simulation environment setup, expert planner (CBS) usage, data representation, and preprocessing steps.
+
+    \item \textbf{\hyperref[chap:methodology]{Chapter 5 (Framework \& Methodology)}:} Describes the architecture of the proposed ADC-enhanced MRPP framework in detail, explaining the CNN encoder, the ADC communication module, the MLP action selector, and the imitation learning training setup.
+
+    \item \textbf{\hyperref[chap:results]{Chapter 6 (Results)}:} Outlines the experimental methodology, including implementation details, evaluation metrics, baseline models, and presents the quantitative and qualitative results comparing the proposed ADC approach with fixed-K GNN baselines, including ablation and generalization studies.
+
+    \item \textbf{\hyperref[chap:conclusion]{Chapter 7 (Conclusion \& Future Work)}:} Interprets the key experimental results, discusses the implications and limitations of the study, summarizes the main findings and contributions, and suggests potential directions for future research.
+\end{itemize}
+% Add bibliography command here in your main file: \bibliography{your_bib_file}
